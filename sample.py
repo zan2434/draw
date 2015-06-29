@@ -1,4 +1,4 @@
-#!/usr/bin/env python 
+#!/usr/bin/env python
 
 from __future__ import print_function, division
 
@@ -13,7 +13,7 @@ import os
 from PIL import Image
 from blocks.main_loop import MainLoop
 from blocks.model import AbstractModel
-from blocks.config import config
+from blocks.config_parser import config
 
 FORMAT = '[%(asctime)s] %(name)-15s %(message)s'
 DATEFMT = "%H:%M:%S"
@@ -55,7 +55,7 @@ def img_grid(arr, global_scale=True):
 
         offset_y, offset_x = r*height, c*width
         I[offset_y:(offset_y+height), offset_x:(offset_x+width)] = this
-    
+
     I = (255*I).astype(np.uint8)
     return Image.fromarray(I)
 
@@ -120,6 +120,3 @@ if __name__ == "__main__":
         os.makedirs(subdir)
 
     generate_samples(p, subdir, args.size)
-
-
-

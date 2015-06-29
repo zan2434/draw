@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 from __future__ import division, print_function
+from abc import ABCMeta, abstractmethod
+from six import add_metaclass, iteritems
 
 import logging
 import numpy as np
@@ -17,20 +19,20 @@ import ipdb
 import time
 import cPickle as pickle
 
-import blocks.extras
 
 from argparse import ArgumentParser
 from theano import tensor
 
 from fuel.streams import DataStream
 from fuel.schemes import SequentialScheme
-from fuel.transformers import Flatten
+from fuel.transformers import Transformer
 
 from blocks.algorithms import GradientDescent, CompositeRule, StepClipping, RMSProp, Adam
 from blocks.bricks import Tanh, Identity
 from blocks.bricks.cost import BinaryCrossEntropy
 from blocks.bricks.recurrent import SimpleRecurrent, LSTM
-from blocks.initialization import Constant, IsotropicGaussian, Orthogonal 
+from blocks.config_parser import config
+from blocks.initialization import Constant, IsotropicGaussian, Orthogonal
 from blocks.filter import VariableFilter
 from blocks.graph import ComputationGraph
 from blocks.roles import PARAMETER
@@ -38,7 +40,7 @@ from blocks.monitoring import aggregation
 from blocks.extensions import FinishAfter, Timing, Printing, ProgressBar
 from blocks.extensions.saveload import Checkpoint
 from blocks.extensions.monitoring import DataStreamMonitoring, TrainingDataMonitoring
-from blocks.extras.extensions.plot import Plot
+from blocks.extensions.plot import Plot
 from blocks.main_loop import MainLoop
 from blocks.model import Model
 
@@ -47,9 +49,60 @@ from draw.draw import *
 
 
 #----------------------------------------------------------------------------
+"""
+Inclusion of SingleMapping transformer from newer version of Fuel
+"""
+@add_metaclass(ABCMeta)
+class SingleMapping(Transformer):
+    """Applies a single mapping to multiple sources.
+
+    Parameters
+    ----------
+    data_stream : instance of :class:`DataStream`
+        The wrapped data stream.
+    which_sources : tuple of str, optional
+        Which sources to apply the mapping to. Defaults to `None`, in
+        which case the mapping is applied to all sources.
+
+    """
+    def __init__(self, data_stream, which_sources=None):
+        if which_sources is None:
+            which_sources = data_stream.sources
+        self.which_sources = which_sources
+        super(SingleMapping, self).__init__(data_stream)
+
+    @abstractmethod
+    def mapping(self, source):
+        """Applies a single mapping to selected sources.
+
+        Parameters
+        ----------
+        source : :class:`numpy.ndarray`
+            Input source.
+
+        """
+
+    def get_data(self, request=None):
+        if request is not None:
+            raise ValueError
+        data = list(next(self.child_epoch_iterator))
+        for i, source_name in enumerate(self.data_stream.sources):
+            if source_name in self.which_sources:
+                data[i] = self.mapping(data[i])
+        return tuple(data)
 
 
-def main(name, dataset, epochs, batch_size, learning_rate, 
+class Flatten(SingleMapping):
+    """Flattens selected sources along all but the first axis."""
+    def __init__(self, data_stream, **kwargs):
+        super(Flatten, self).__init__(data_stream, **kwargs)
+
+    def mapping(self, source):
+        return source.reshape((source.shape[0], -1))
+#----------------------------------------------------------------------------
+
+config.recursion_limit = 1e8
+def main(name, dataset, epochs, batch_size, learning_rate,
          attention, n_iter, enc_dim, dec_dim, z_dim, oldmodel):
 
 
@@ -75,10 +128,10 @@ def main(name, dataset, epochs, batch_size, learning_rate,
         'weights_init': IsotropicGaussian(0.01),
         'biases_init': Constant(0.),
     }
-    
+
     if attention != "":
         read_N, write_N = attention.split(',')
-    
+
         read_N = int(read_N)
         write_N = int(write_N)
         read_dim = 2*read_N**2
@@ -140,7 +193,7 @@ def main(name, dataset, epochs, batch_size, learning_rate,
     q_sampler = Qsampler(input_dim=enc_dim, output_dim=z_dim, **inits)
 
     draw = DrawModel(
-                n_iter, 
+                n_iter,
                 reader=reader,
                 encoder_mlp=encoder_mlp,
                 encoder_rnn=encoder_rnn,
@@ -152,13 +205,13 @@ def main(name, dataset, epochs, batch_size, learning_rate,
 
     #------------------------------------------------------------------------
     x = tensor.matrix('features')
-    
+
     #x_recons = 1. + x
     x_recons, kl_terms = draw.reconstruct(x)
     #x_recons, _, _, _, _ = draw.silly(x, n_steps=10, batch_size=100)
     #x_recons = x_recons[-1,:,:]
 
-    #samples = draw.sample(100) 
+    #samples = draw.sample(100)
     #x_recons = samples[-1, :, :]
     #x_recons = samples[-1, :, :]
 
@@ -173,10 +226,10 @@ def main(name, dataset, epochs, batch_size, learning_rate,
     params = VariableFilter(roles=[PARAMETER])(cg.variables)
 
     algorithm = GradientDescent(
-        cost=cost, 
+        cost=cost,
         params=params,
         step_rule=CompositeRule([
-            StepClipping(10.), 
+            StepClipping(10.),
             Adam(learning_rate),
         ])
         #step_rule=RMSProp(learning_rate),
@@ -223,7 +276,7 @@ def main(name, dataset, epochs, batch_size, learning_rate,
             Timing(),
             FinishAfter(after_n_epochs=epochs),
             TrainingDataMonitoring(
-                train_monitors, 
+                train_monitors,
                 prefix="train",
                 after_epoch=True),
 #            DataStreamMonitoring(
@@ -234,11 +287,11 @@ def main(name, dataset, epochs, batch_size, learning_rate,
             DataStreamMonitoring(
                 monitors,
                 test_stream,
-#                updates=scan_updates, 
+#                updates=scan_updates,
                 prefix="test"),
             Checkpoint(name, before_training=False, after_epoch=True, save_separately=['log', 'model']),
             #Checkpoint(image_size=image_size, save_subdir=subdir, path=pickle_file, before_training=False, after_epoch=True, save_separately=['log', 'model']),
-            # Plot(name, channels=plot_channels),
+            Plot(name, channels=plot_channels),
             ProgressBar(),
             Printing()])
 
