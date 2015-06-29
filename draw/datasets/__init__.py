@@ -40,6 +40,15 @@ def get_data(data_name):
         data_train = TorontoFaceDatabase(which_set=['unlabeled'], size=size, sources=['features'])
         data_valid = TorontoFaceDatabase(which_set=['valid'], size=size, sources=['features'])
         data_test  = TorontoFaceDatabase(which_set=['test'], size=size, sources=['features'])
+        
+    elif data_name == 'speech':
+        from SynthesisTaskData import SynthesisTaskData
+        
+        img_size = (28,28)
+        
+        data_train = SynthesisTaskData(sources = ['features'])
+        data_valid = SynthesisTaskData(sources = ['features'])
+        data_test = SynthesisTaskData(sources = ['features'])
     else:
         raise ValueError("Unknown dataset %s" % data_name)
 
