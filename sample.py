@@ -101,17 +101,18 @@ def reconstruct(p):
     draw = model.get_top_bricks()[0]
     
     std = SynthesisTaskData(sources = ['features'])
-    test_stream = Flatten(DataStream(std, iteration_scheme=SequentialScheme(std.num_examples, 1)))
+    test_stream = ExtraFlat(DataStream(std, iteration_scheme=SequentialScheme(std.num_examples, 100)))
     
     z_dim = draw.sampler.mean_transform.get_dim('output')
     
-    features = T.ftensor3("features")
+    features = T.matrix("features")
     recons, kl = draw.reconstruct(features)
     do_encoding = theano.function([features], outputs = [recons, kl], allow_input_downcast=True)
-    recons, kl = do_encoding(test_stream.get_epoch_iterator().__next__())
+    recons, kl = do_encoding(test_stream.get_epoch_iterator().__next__()[0])
 #     n_iter, N, D = recons.shape
     print(recons.shape)
     
+    np.save("orig",test_stream.get_epoch_iterator().__next__()[0])
     np.save("recons",recons)
 
 def generate_samples(p, subdir, output_size):
@@ -219,6 +220,12 @@ class Flatten(SingleMapping):
 
     def mapping(self, source):
         return source.reshape((source.shape[0], -1))
+    
+class ExtraFlat(SingleMapping):
+    def __init__(self, data_stream, **kwargs):
+        super(ExtraFlat, self).__init__(data_stream, **kwargs)
+    def mapping(self, source):
+        return source.reshape((100,784))
 #----------------------------------------------------------------------------
 
 if __name__ == "__main__":
