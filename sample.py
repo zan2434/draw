@@ -158,7 +158,7 @@ def generate_samples(p, subdir, output_size):
 
     #with open("centers.pkl", "wb") as f:
     #    pikle.dump(f, (center_y, center_x, delta))
-    os.system("convert -delay 5 -loop 1 {0}/sample-*.png {0}/samples.gif".format(subdir))
+    os.system("convert -delay 5 -loop 0 {0}/sample-*.png {0}/samples.gif".format(subdir))
         
 # def chunk(n_of_chunks, second):
 #     second_chunk_length = len(second)/n_of_chunks

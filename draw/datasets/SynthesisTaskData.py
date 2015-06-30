@@ -45,6 +45,7 @@ class SynthesisTaskData(IndexableDataset):
         
         text = open(config.data_path+"/speech_synthesis/preface.txt").read()
         audio = np.load(config.data_path+"/speech_synthesis/preface.npy")
+        audio = np.add(audio, 0.4)
 #         audio = np.reshape(audio, audio.shape+(1,))
         
         print audio.shape
