@@ -19,6 +19,7 @@ from prob_layers import replicate_batch
 
 #-----------------------------------------------------------------------------
 
+scale = 10
 class Qsampler(Initializable, Random):
     def __init__(self, input_dim, output_dim, **kwargs):
         super(Qsampler, self).__init__(**kwargs)
@@ -301,7 +302,8 @@ class DrawModel(BaseRecurrent, Initializable, Random):
                states=['c', 'h_enc', 'c_enc', 'z', 'kl', 'h_dec', 'c_dec'],
                outputs=['c', 'h_enc', 'c_enc', 'z', 'kl', 'h_dec', 'c_dec'])
     def apply(self, u, c, h_enc, c_enc, z, kl, h_dec, c_dec, x):
-        x_hat = x-T.nnet.sigmoid(c)
+        # x_hat = x-T.nnet.sigmoid(c*scale)
+        x_hat = x-(T.sin(c)+1)/2
         r = self.reader.apply(x, x_hat, h_dec)
         i_enc = self.encoder_mlp.apply(T.concatenate([r, h_dec], axis=1))
         h_enc, c_enc = self.encoder_rnn.apply(states=h_enc, cells=c_enc, inputs=i_enc, iterate=False)
@@ -331,7 +333,7 @@ class DrawModel(BaseRecurrent, Initializable, Random):
     @application(inputs=['features'], outputs=['recons', 'kl'])
     def reconstruct(self, features):
         batch_size = features.shape[0]
-        
+
         dim_z = self.get_dim('z')
 
         # Sample from mean-zeros std.-one Gaussian
@@ -342,13 +344,15 @@ class DrawModel(BaseRecurrent, Initializable, Random):
         c, h_enc, c_enc, z, kl, h_dec, c_dec = \
             rvals = self.apply(x=features, u=u)
 
-        x_recons = T.nnet.sigmoid(c[-1,:,:])
+        # x_recons = T.nnet.sigmoid(c[-1,:,:]*scale)
+#         x_recons = c[-1,:,:]
+        x_recons = (T.sin(c[-1,:,:])+1)/2
         x_recons.name = "reconstruction"
 
         kl.name = "kl"
 
         return x_recons, kl
-    
+
     @application(inputs=['features'], outputs=['z'])
     def get_feature_encoding(self, features):
         batch_size = features.shape[0]
@@ -362,7 +366,10 @@ class DrawModel(BaseRecurrent, Initializable, Random):
         c, h_enc, c_enc, z, kl, h_dec, c_dec = \
             rvals = self.apply(x=features, u=u)
 
-        x_recons = T.nnet.sigmoid(c[-1,:,:])
+        # x_recons = T.nnet.sigmoid(c[-1,:,:]*scale)
+        x_recons = (T.sin(c[-1,:,:])+1)/2
+#         x_recons = c[-1,:,:]
+
         x_recons.name = "reconstruction"
 
         kl.name = "kl"
@@ -387,4 +394,6 @@ class DrawModel(BaseRecurrent, Initializable, Random):
 
         c, _, _, = self.decode(u)
         #c, _, _, center_y, center_x, delta = self.decode(u)
-        return T.nnet.sigmoid(c)
+#         return T.nnet.sigmoid(c*scale)
+        return (T.sin(c)+1)/2
+#         return c
